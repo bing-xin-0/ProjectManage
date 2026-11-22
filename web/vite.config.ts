@@ -1,0 +1,14 @@
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+
+export default defineConfig({
+  plugins: [react()],
+  server: {
+    port: 5173,
+    strictPort: true,
+    // 开发时把 /api 代理到服务端
+    proxy: {
+      '/api': 'http://localhost:3000',
+    },
+  },
+});

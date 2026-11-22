@@ -1,0 +1,20 @@
+{
+  "name": "project-pulse",
+  "version": "0.1.0",
+  "private": true,
+  "description": "项目管家 Project Pulse - 开发者多项目记忆助手（monorepo）",
+  "scripts": {
+    "dev:server": "pnpm --filter server dev",
+    "dev:web": "pnpm --filter web dev",
+    "dev:desktop": "pnpm --filter desktop tauri dev",
+    "build:server": "pnpm --filter server build",
+    "build:web": "pnpm --filter web build",
+    "build:desktop": "pnpm --filter desktop tauri build",
+    "dev": "pnpm --parallel dev:server dev:web",
+    "build": "pnpm -r build"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "pnpm@12.21.0"
+}
