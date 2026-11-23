@@ -34,3 +34,8 @@ server/data/
 
 # acl recovery (local permission repair artifacts)
 .acl-recovery/
+
+# pnpm local store / cache dirs (machine-local)
+.npm-tmp-cache/
+.pnpm-store/
+.pnpm-*cache*/
