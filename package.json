@@ -10,7 +10,7 @@
     "build:server": "pnpm --filter server build",
     "build:web": "pnpm --filter web build",
     "build:desktop": "pnpm --filter desktop tauri build",
-    "dev": "pnpm --parallel dev:server dev:web",
+    "dev": "pnpm --parallel --filter server --filter web dev",
     "build": "pnpm -r build"
   },
   "engines": {
