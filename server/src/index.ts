@@ -8,6 +8,8 @@ import { registerCommitRoutes } from './routes/commits.js';
 import { registerDashboardRoute } from './routes/dashboard.js';
 import { registerReportRoutes } from './routes/reports.js';
 import { registerPublicRoutes } from './routes/public.js';
+import { registerAdminRoutes } from './routes/admin.js';
+import { startScheduler } from './scheduler.js';
 
 const app = Fastify({ logger: true });
 
@@ -22,6 +24,10 @@ registerCommitRoutes(app);
 registerDashboardRoute(app);
 registerReportRoutes(app);
 registerPublicRoutes(app);
+registerAdminRoutes(app);
+
+// 定时邮件摘要（SMTP 未配置时自动跳过）
+startScheduler();
 
 const port = Number(process.env.PORT ?? 3000);
 

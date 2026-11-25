@@ -94,7 +94,7 @@ export function verifyToken(token: string): AuthUser {
 
 export function authHook(fastify: FastifyInstance) {
   fastify.decorateRequest('auth', undefined);
-  const PUBLIC_PREFIXES = ['/api/auth/', '/api/public/', '/api/health'];
+  const PUBLIC_PREFIXES = ['/api/auth/', '/api/public/', '/api/health', '/api/admin/'];
   fastify.addHook('preHandler', async (request: FastifyRequest, reply: FastifyReply) => {
     const url = request.url;
     // 公开/认证路由免鉴权
