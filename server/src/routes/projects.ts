@@ -116,7 +116,15 @@ export function registerProjectRoutes(app: FastifyInstance) {
   app.delete('/api/projects/:id', async (request, reply) => {
     const p = findOwned(request);
     if (!p) return reply.code(404).send({ error: '项目不存在' });
-    db.prepare('DELETE FROM projects WHERE id = ?').run(p.id);
+    // 级联删除子表记录（外键 ON 时不能只删 projects 主表），事务保证原子
+    const del = db.transaction((projectId: number) => {
+      db.prepare('DELETE FROM commits WHERE project_id = ?').run(projectId);
+      db.prepare('DELETE FROM sync_log WHERE project_id = ?').run(projectId);
+      db.prepare('DELETE FROM project_local_bindings WHERE project_id = ?').run(projectId);
+      db.prepare('DELETE FROM notifications WHERE project_id = ?').run(projectId);
+      db.prepare('DELETE FROM projects WHERE id = ?').run(projectId);
+    });
+    del(p.id);
     return { ok: true };
   });
 
