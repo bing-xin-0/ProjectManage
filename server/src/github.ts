@@ -116,7 +116,13 @@ export async function listUserRepos(token: string, maxPages = 5): Promise<Github
 }
 
 /**
- * 拉取某个仓库的提交历史（可增量：sinceSha 存在时只取该 sha 之后的提交）。
+ * 拉取某个仓库默认分支的提交历史（可增量：sinceSha 存在时只取该 sha 之后的提交）。
+ *
+ * 注意 GitHub commits API 的 `sha` 参数语义是「从该 SHA 开始往回列历史」（含该 SHA 及其祖先），
+ * 若直接把上次同步的 tip 传进去，只会返回已经入库的旧提交、永远拿不到新提交。
+ * 正确做法：从默认分支头部列起（sha=defaultBranch），逐页遇到 sinceSha 即停（其后的都已在库）。
+ * 若 sinceSha 不在默认分支历史里（如 force-push/分支切换），最多拉 10 页（1000 条），去重兜底。
+ *
  * 返回按时间倒序的提交列表（已映射为 SyncCommitInput，committed_at 为 UTC ISO）。
  */
 export async function fetchRepoCommits(
@@ -124,16 +130,21 @@ export async function fetchRepoCommits(
   owner: string,
   name: string,
   sinceSha?: string,
+  defaultBranch?: string,
 ): Promise<SyncCommitInput[]> {
   const commits: SyncCommitInput[] = [];
+  const branch = defaultBranch ?? 'main';
   let page = 1;
   while (page <= 10) {
-    const path = `/repos/${owner}/${name}/commits?per_page=${PER_PAGE}&page=${page}${
-      sinceSha ? `&sha=${sinceSha}` : ''
-    }`;
+    const path = `/repos/${owner}/${name}/commits?per_page=${PER_PAGE}&page=${page}&sha=${branch}`;
     const data = await ghFetch(token, path);
     if (!Array.isArray(data) || data.length === 0) break;
+    let reachedSince = false;
     for (const c of data) {
+      if (sinceSha && c.sha === sinceSha) {
+        reachedSince = true;
+        break;
+      }
       const author = c?.commit?.author;
       const date = author?.date;
       const iso = date ? new Date(date).toISOString() : new Date().toISOString();
@@ -144,13 +155,27 @@ export async function fetchRepoCommits(
         author_email: author?.email ?? null,
         committed_at: iso,
         committed_offset: null,
-        branch: null, // GitHub commits API 不含分支；按默认分支归并
+        branch, // 统一归并到默认分支，便于时间线分组展示
       });
     }
+    if (reachedSince) break;
     if (data.length < PER_PAGE) break;
     page++;
   }
   return commits;
+}
+
+/** 取仓库信息（默认分支 + 描述），用于登记/同步时归并分支与补全描述 */
+export async function getRepoInfo(
+  token: string,
+  owner: string,
+  name: string,
+): Promise<{ default_branch: string; description: string | null }> {
+  const r = await ghFetch(token, `/repos/${owner}/${name}`);
+  return {
+    default_branch: r.default_branch ?? 'main',
+    description: r.description ?? null,
+  };
 }
 
 /** 已入库的 GitHub 项目（source='github'） */

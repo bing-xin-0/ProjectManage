@@ -6,6 +6,7 @@ import {
   listUserRepos,
   fetchRepoCommits,
   getGithubToken,
+  getRepoInfo,
   ingestCommits,
   latestCommitSha,
   refreshLastActive,
@@ -60,9 +61,12 @@ export function registerGithubRoutes(app: FastifyInstance) {
       return { ...existing, ...aggregateFor(existing) };
     }
 
+    // 先取仓库元信息（默认分支 + 描述），再拉默认分支提交历史
+    let repoInfo: { default_branch: string; description: string | null } | null = null;
     let commits: SyncCommitInput[] = [];
     try {
-      commits = await fetchRepoCommits(token, parsed.owner, parsed.name);
+      repoInfo = await getRepoInfo(token, parsed.owner, parsed.name);
+      commits = await fetchRepoCommits(token, parsed.owner, parsed.name, undefined, repoInfo.default_branch);
     } catch (e) {
       if (e instanceof GithubAuthError || e instanceof GithubRateLimitError) {
         return reply.code(401).send({ error: e.message });
@@ -72,17 +76,19 @@ export function registerGithubRoutes(app: FastifyInstance) {
 
     const shareToken = randomUUID();
     const visibility = body?.visibility === 'public' ? 'public' : 'private';
+    const description = body?.description ?? repoInfo?.description ?? null;
     const info = db
       .prepare(
-        `INSERT INTO projects (owner_id, name, source, repo_full_name, repo_remote, description, status, visibility, share_token, note, created_at)
-         VALUES (?, ?, 'github', ?, ?, ?, 'active', ?, ?, ?, ?)`,
+        `INSERT INTO projects (owner_id, name, source, repo_full_name, repo_remote, repo_default_branch, description, status, visibility, share_token, note, created_at)
+         VALUES (?, ?, 'github', ?, ?, ?, ?, 'active', ?, ?, ?, ?)`,
       )
       .run(
         ownerId,
         parsed.name,
         repoFullName,
         `github.com/${repoFullName}.git`,
-        body?.description ?? null,
+        repoInfo?.default_branch ?? 'main',
+        description,
         visibility,
         shareToken,
         body?.note ?? null,
@@ -115,7 +121,13 @@ export function registerGithubRoutes(app: FastifyInstance) {
 
     try {
       const sinceSha = latestCommitSha(row.id);
-      const commits = await fetchRepoCommits(token, parsed.owner, parsed.name, sinceSha ?? undefined);
+      const commits = await fetchRepoCommits(
+        token,
+        parsed.owner,
+        parsed.name,
+        sinceSha ?? undefined,
+        row.repo_default_branch ?? undefined,
+      );
       const added = ingestCommits(row.id, commits);
       refreshLastActive(row.id);
       db.prepare('INSERT INTO sync_log (project_id, machine_id) VALUES (?, ?)').run(row.id, 'github');

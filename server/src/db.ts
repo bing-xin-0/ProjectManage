@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS projects (
   source TEXT NOT NULL DEFAULT 'manual',
   repo_full_name TEXT,
   repo_remote TEXT,
+  repo_default_branch TEXT,
   description TEXT,
   status TEXT NOT NULL DEFAULT 'active',
   visibility TEXT NOT NULL DEFAULT 'private',
@@ -100,6 +101,7 @@ ensureColumn('users', 'github_token', 'TEXT');
 ensureColumn('users', 'github_username', 'TEXT');
 ensureColumn('projects', 'source', "TEXT NOT NULL DEFAULT 'manual'");
 ensureColumn('projects', 'repo_full_name', 'TEXT');
+ensureColumn('projects', 'repo_default_branch', 'TEXT');
 
 export function nowIso(): string {
   return new Date().toISOString();

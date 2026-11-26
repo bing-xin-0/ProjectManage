@@ -98,6 +98,7 @@ export async function syncAllGithubProjects(): Promise<number> {
     id: number;
     owner_id: number;
     repo_full_name: string;
+    repo_default_branch: string | null;
   }[];
   let ok = 0;
   for (const p of projects) {
@@ -107,7 +108,13 @@ export async function syncAllGithubProjects(): Promise<number> {
     if (!parsed) continue;
     try {
       const sinceSha = latestCommitSha(p.id);
-      const commits = await fetchRepoCommits(token, parsed.owner, parsed.name, sinceSha ?? undefined);
+      const commits = await fetchRepoCommits(
+        token,
+        parsed.owner,
+        parsed.name,
+        sinceSha ?? undefined,
+        p.repo_default_branch ?? undefined,
+      );
       ingestCommits(p.id, commits);
       refreshLastActive(p.id);
       db.prepare('INSERT INTO sync_log (project_id, machine_id) VALUES (?, ?)').run(p.id, 'github');
