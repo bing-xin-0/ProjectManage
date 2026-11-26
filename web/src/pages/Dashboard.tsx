@@ -134,9 +134,20 @@ export default function Dashboard() {
       okButtonProps: { danger: true },
       cancelText: '取消',
       onOk: async () => {
-        await projectApi.remove(p.id);
-        message.success('已删除');
-        load();
+        try {
+          await projectApi.remove(p.id);
+          message.success('已删除');
+          load();
+        } catch (e: any) {
+          if (e.status === 401) {
+            setToken(null);
+            window.location.reload();
+          } else {
+            // 返回 rejected promise 让弹窗保持打开，并给出明确错误提示
+            message.error(e.message ?? '删除失败');
+            throw e;
+          }
+        }
       },
     });
   };
