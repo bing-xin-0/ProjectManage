@@ -39,3 +39,7 @@ server/data/
 .npm-tmp-cache/
 .pnpm-store/
 .pnpm-*cache*/
+
+# local planning/journal docs (not pushed)
+项目管家-产品策划.md
+项目进程书.md

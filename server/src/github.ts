@@ -25,6 +25,14 @@ export class GithubRateLimitError extends Error {
   }
 }
 
+/** 无法连通 GitHub（网络/代理/TLS 证书等），区别于令牌本身无效 */
+export class GithubConnectError extends Error {
+  constructor(message = '无法连接到 GitHub，请检查网络或代理设置') {
+    super(message);
+    this.name = 'GithubConnectError';
+  }
+}
+
 export interface GithubRepo {
   full_name: string;
   name: string;
@@ -55,14 +63,21 @@ export function parseRepoFullName(full: string): { owner: string; name: string }
 
 /** GitHub API 基础请求：带 PAT，处理 401/403/404 */
 async function ghFetch(token: string, path: string): Promise<any> {
-  const res = await fetch(`${GITHUB_API}${path}`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: 'application/vnd.github+json',
-      'X-GitHub-Api-Version': '2022-11-28',
-      'User-Agent': 'project-pulse',
-    },
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${GITHUB_API}${path}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/vnd.github+json',
+        'X-GitHub-Api-Version': '2022-11-28',
+        'User-Agent': 'project-pulse',
+      },
+    });
+  } catch (e) {
+    // 网络层失败（DNS/代理/TLS 证书/连接被拒等）→ 转成可读错误，避免裸 500
+    const cause = e instanceof Error ? e.message : String(e);
+    throw new GithubConnectError(`无法连接到 GitHub：${cause}`);
+  }
   if (res.status === 401) throw new GithubAuthError();
   if (res.status === 403) {
     // 限流：X-RateLimit-Remaining 为 0

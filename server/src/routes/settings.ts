@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { db } from '../db.js';
-import { verifyTokenAndUser, GithubAuthError } from '../github.js';
+import { verifyTokenAndUser, GithubAuthError, GithubConnectError } from '../github.js';
 
 /**
  * GitHub 设置：
@@ -39,6 +39,9 @@ export function registerSettingsRoutes(app: FastifyInstance) {
     } catch (e) {
       if (e instanceof GithubAuthError) {
         return reply.code(401).send({ error: e.message });
+      }
+      if (e instanceof GithubConnectError) {
+        return reply.code(502).send({ error: e.message });
       }
       throw e;
     }

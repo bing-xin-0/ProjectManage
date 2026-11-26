@@ -13,6 +13,7 @@ import {
   parseRepoFullName,
   GithubAuthError,
   GithubRateLimitError,
+  GithubConnectError,
 } from '../github.js';
 
 /**
@@ -32,6 +33,9 @@ export function registerGithubRoutes(app: FastifyInstance) {
     } catch (e) {
       if (e instanceof GithubAuthError || e instanceof GithubRateLimitError) {
         return reply.code(401).send({ error: e.message });
+      }
+      if (e instanceof GithubConnectError) {
+        return reply.code(502).send({ error: e.message });
       }
       throw e;
     }
@@ -70,6 +74,9 @@ export function registerGithubRoutes(app: FastifyInstance) {
     } catch (e) {
       if (e instanceof GithubAuthError || e instanceof GithubRateLimitError) {
         return reply.code(401).send({ error: e.message });
+      }
+      if (e instanceof GithubConnectError) {
+        return reply.code(502).send({ error: e.message });
       }
       return reply.code(400).send({ error: e instanceof Error ? e.message : '登记失败' });
     }
@@ -135,6 +142,9 @@ export function registerGithubRoutes(app: FastifyInstance) {
     } catch (e) {
       if (e instanceof GithubAuthError || e instanceof GithubRateLimitError) {
         return reply.code(401).send({ error: e.message });
+      }
+      if (e instanceof GithubConnectError) {
+        return reply.code(502).send({ error: e.message });
       }
       return reply.code(400).send({ error: e instanceof Error ? e.message : '同步失败' });
     }
