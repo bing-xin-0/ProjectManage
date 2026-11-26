@@ -2,11 +2,11 @@ import { useEffect, useState, useCallback } from 'react';
 import {
   Card, Button, Space, Tag, Typography, Empty, App, Input, Select, Popconfirm, Row, Col, Table, Descriptions,
 } from 'antd';
-import { ArrowLeftOutlined, CopyOutlined, StarFilled, StarOutlined, ShareAltOutlined } from '@ant-design/icons';
+import { ArrowLeftOutlined, CopyOutlined, StarFilled, StarOutlined, ShareAltOutlined, ReloadOutlined, GithubOutlined } from '@ant-design/icons';
 import { useNavigate, useParams } from 'react-router-dom';
 import ReactECharts from 'echarts-for-react';
 import {
-  projectApi, commitApi, setToken,
+  projectApi, commitApi, githubApi, setToken,
   type Project, type CommitItem, type TimelineData, type ProjectStats,
 } from '../api';
 
@@ -32,6 +32,7 @@ export default function ProjectDetail() {
   const [commits, setCommits] = useState<CommitItem[]>([]);
   const [noteDraft, setNoteDraft] = useState('');
   const [savingNote, setSavingNote] = useState(false);
+  const [syncing, setSyncing] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -79,6 +80,20 @@ export default function ProjectDetail() {
     }
   };
 
+  const syncGithub = async () => {
+    if (!project) return;
+    setSyncing(true);
+    try {
+      const r = await githubApi.syncProject(project.id);
+      message.success(`同步完成：新增 ${r.added} 条提交，共 ${r.total} 条`);
+      load();
+    } catch (e: any) {
+      message.error(e.message ?? '同步失败');
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   const copyShareLink = async () => {
     if (!project?.share_token) return;
     const link = `${window.location.origin}/share/${project.share_token}`;
@@ -115,6 +130,7 @@ export default function ProjectDetail() {
       <Space style={{ marginBottom: 16 }}>
         <Button icon={<ArrowLeftOutlined />} onClick={() => nav('/')}>返回</Button>
         <Title level={3} style={{ margin: 0 }}>{project.name}</Title>
+        {project.source === 'github' && <Tag color="geekblue" icon={<GithubOutlined />}>GitHub</Tag>}
         <Tag>{STATUS_LABEL[project.status]}</Tag>
         {project.starred === 1 && <StarFilled style={{ color: '#faad14' }} />}
         {project.visibility === 'public' && <Tag color="blue">公开</Tag>}
@@ -144,6 +160,11 @@ export default function ProjectDetail() {
               >
                 收藏
               </Button>
+              {project.source === 'github' && (
+                <Button icon={<GithubOutlined />} loading={syncing} onClick={syncGithub}>
+                  同步到 GitHub
+                </Button>
+              )}
               {project.visibility === 'private' ? (
                 <Popconfirm
                   title="设为公开？"

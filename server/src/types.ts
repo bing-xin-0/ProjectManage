@@ -9,6 +9,8 @@ export interface UserRow {
   username: string;
   password_hash: string;
   email: string | null;
+  github_token: string | null;
+  github_username: string | null;
   created_at: string;
 }
 
@@ -16,6 +18,8 @@ export interface ProjectRow {
   id: number;
   owner_id: number;
   name: string;
+  source: string;
+  repo_full_name: string | null;
   repo_remote: string | null;
   description: string | null;
   status: ProjectStatus;

@@ -9,6 +9,8 @@ import { registerDashboardRoute } from './routes/dashboard.js';
 import { registerReportRoutes } from './routes/reports.js';
 import { registerPublicRoutes } from './routes/public.js';
 import { registerAdminRoutes } from './routes/admin.js';
+import { registerSettingsRoutes } from './routes/settings.js';
+import { registerGithubRoutes } from './routes/github.js';
 import { startScheduler } from './scheduler.js';
 
 const app = Fastify({ logger: true });
@@ -25,6 +27,8 @@ registerDashboardRoute(app);
 registerReportRoutes(app);
 registerPublicRoutes(app);
 registerAdminRoutes(app);
+registerSettingsRoutes(app);
+registerGithubRoutes(app);
 
 // 定时邮件摘要（SMTP 未配置时自动跳过）
 startScheduler();

@@ -18,6 +18,8 @@ CREATE TABLE IF NOT EXISTS users (
   username TEXT NOT NULL UNIQUE,
   password_hash TEXT NOT NULL,
   email TEXT,
+  github_token TEXT,
+  github_username TEXT,
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 
@@ -25,6 +27,8 @@ CREATE TABLE IF NOT EXISTS projects (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   owner_id INTEGER NOT NULL REFERENCES users(id),
   name TEXT NOT NULL,
+  source TEXT NOT NULL DEFAULT 'manual',
+  repo_full_name TEXT,
   repo_remote TEXT,
   description TEXT,
   status TEXT NOT NULL DEFAULT 'active',
@@ -84,6 +88,18 @@ CREATE INDEX IF NOT EXISTS idx_projects_owner ON projects(owner_id);
 `;
 
 db.exec(schema);
+
+// 轻量迁移：为已有库补新增列（无 ALTER IF NOT EXISTS，手动检查）
+function ensureColumn(table: string, column: string, ddl: string) {
+  const cols = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
+  if (!cols.some((c) => c.name === column)) {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${ddl}`);
+  }
+}
+ensureColumn('users', 'github_token', 'TEXT');
+ensureColumn('users', 'github_username', 'TEXT');
+ensureColumn('projects', 'source', "TEXT NOT NULL DEFAULT 'manual'");
+ensureColumn('projects', 'repo_full_name', 'TEXT');
 
 export function nowIso(): string {
   return new Date().toISOString();

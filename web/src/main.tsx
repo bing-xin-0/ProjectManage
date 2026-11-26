@@ -7,6 +7,7 @@ import Dashboard from './pages/Dashboard';
 import ProjectDetail from './pages/ProjectDetail';
 import Reports from './pages/Reports';
 import PublicShare from './pages/PublicShare';
+import Settings from './pages/Settings';
 import Login from './pages/Login';
 import { getToken } from './api';
 
@@ -22,6 +23,7 @@ function Root() {
       <Route path="/" element={<Dashboard />} />
       <Route path="/project/:id" element={<ProjectDetail />} />
       <Route path="/reports" element={<Reports />} />
+      <Route path="/settings" element={<Settings />} />
       <Route path="/share/:shareToken" element={<PublicShare />} />
       <Route path="*" element={<Navigate to="/" />} />
     </Routes>

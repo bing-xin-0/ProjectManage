@@ -1,8 +1,8 @@
 import { useEffect, useState, useCallback } from 'react';
-import { Card, Col, Row, Tag, Button, Space, Typography, Empty, App, Modal, Form, Input, Dropdown, Badge, Statistic } from 'antd';
-import { PlusOutlined, StarFilled, StarOutlined, DeleteOutlined, EyeOutlined, WarningOutlined } from '@ant-design/icons';
+import { Card, Col, Row, Tag, Button, Space, Typography, Empty, App, Modal, Form, Input, Dropdown, Badge, Statistic, Select, List } from 'antd';
+import { PlusOutlined, StarFilled, StarOutlined, DeleteOutlined, EyeOutlined, WarningOutlined, GithubOutlined, SettingOutlined, ReloadOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
-import { projectApi, setToken, type Project, type DashboardData } from '../api';
+import { projectApi, githubApi, settingsApi, setToken, type Project, type DashboardData, type GithubRepo } from '../api';
 
 const { Title, Text } = Typography;
 
@@ -23,6 +23,11 @@ export default function Dashboard() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
+  const [ghRepos, setGhRepos] = useState<GithubRepo[]>([]);
+  const [ghLoading, setGhLoading] = useState(false);
+  const [ghConfigured, setGhConfigured] = useState<boolean | null>(null);
+  const [addMode, setAddMode] = useState<'github' | 'manual'>('github');
+  const [addingGh, setAddingGh] = useState(false);
   const { message, modal } = App.useApp();
   const nav = useNavigate();
 
@@ -47,6 +52,31 @@ export default function Dashboard() {
     load();
   }, [load]);
 
+  const openAdd = async () => {
+    setAddOpen(true);
+    setAddMode('github');
+    // 探测 GitHub 是否已配置
+    try {
+      const s = await settingsApi.github();
+      setGhConfigured(s.configured);
+    } catch {
+      setGhConfigured(false);
+    }
+  };
+
+  const loadGhRepos = async () => {
+    setGhLoading(true);
+    try {
+      const r = await githubApi.repos();
+      setGhRepos(r.repos);
+      setGhConfigured(true);
+    } catch (e: any) {
+      message.error(e.message ?? '加载 GitHub 仓库失败');
+    } finally {
+      setGhLoading(false);
+    }
+  };
+
   const createProject = async (values: { name: string; repo_remote?: string; description?: string }) => {
     try {
       await projectApi.create(values);
@@ -58,9 +88,42 @@ export default function Dashboard() {
     }
   };
 
+  const createFromGithub = async (values: { repoFullName?: string; description?: string }) => {
+    if (!values.repoFullName) {
+      message.warning('请选择一个 GitHub 仓库');
+      return;
+    }
+    setAddingGh(true);
+    try {
+      const r = await githubApi.registerProject({ repoFullName: values.repoFullName, description: values.description });
+      message.success(`已从 GitHub 登记「${r.name}」，拉取 ${r.synced ?? 0} 条提交`);
+      setAddOpen(false);
+      load();
+    } catch (e: any) {
+      message.error(e.message ?? '登记失败');
+    } finally {
+      setAddingGh(false);
+    }
+  };
+
   const toggleStar = async (p: Project) => {
     await projectApi.update(p.id, { starred: p.starred ? 0 : 1 });
     load();
+  };
+
+  const [syncingId, setSyncingId] = useState<number | null>(null);
+
+  const syncProject = async (p: Project) => {
+    setSyncingId(p.id);
+    try {
+      const r = await githubApi.syncProject(p.id);
+      message.success(`同步完成：新增 ${r.added} 条提交，共 ${r.total} 条`);
+      load();
+    } catch (e: any) {
+      message.error(e.message ?? '同步失败');
+    } finally {
+      setSyncingId(null);
+    }
   };
 
   const removeProject = (p: Project) => {
@@ -94,6 +157,7 @@ export default function Dashboard() {
         <Col>
           <Space>
             <Button onClick={() => nav('/reports')}>日报 / 周报</Button>
+            <Button icon={<SettingOutlined />} onClick={() => nav('/settings')}>设置</Button>
             <Button onClick={logout}>退出</Button>
           </Space>
         </Col>
@@ -160,6 +224,11 @@ export default function Dashboard() {
                     <span key="open" onClick={(e) => { e.stopPropagation(); nav(`/project/${p.id}`); }}>
                       <EyeOutlined /> 详情
                     </span>,
+                    p.source === 'github' && (
+                      <span key="sync" onClick={(e) => { e.stopPropagation(); syncProject(p); }}>
+                        <ReloadOutlined spin={syncingId === p.id} /> 同步
+                      </span>
+                    ),
                     <span key="del" onClick={(e) => { e.stopPropagation(); removeProject(p); }}>
                       <DeleteOutlined />
                     </span>,
@@ -168,6 +237,7 @@ export default function Dashboard() {
                   <Space direction="vertical" size={4} style={{ width: '100%' }}>
                     <Space>
                       <Tag color={STATUS_COLOR[p.status]}>{STATUS_LABEL[p.status]}</Tag>
+                      {p.source === 'github' && <Tag color="geekblue" icon={<GithubOutlined />}>GitHub</Tag>}
                       {p.starred === 1 && <StarFilled style={{ color: '#faad14' }} />}
                       {p.is_stale && <Badge count="凉了" color="#faad14" />}
                     </Space>
@@ -203,24 +273,66 @@ export default function Dashboard() {
         size="large"
         icon={<PlusOutlined />}
         style={{ position: 'fixed', right: 32, bottom: 32, width: 56, height: 56 }}
-        onClick={() => setAddOpen(true)}
+        onClick={openAdd}
       />
 
-      <Modal title="添加项目" open={addOpen} onCancel={() => setAddOpen(false)} footer={null}>
-        <Form layout="vertical" onFinish={createProject} style={{ marginTop: 8 }}>
-          <Form.Item name="name" label="项目名称" rules={[{ required: true, message: '请输入项目名称' }]}>
-            <Input placeholder="例如：project-pulse" />
-          </Form.Item>
-          <Form.Item name="repo_remote" label="git 远程地址（可选）">
-            <Input placeholder="例如：github.com/xx/yy.git" />
-          </Form.Item>
-          <Form.Item name="description" label="描述（可选）">
-            <Input.TextArea rows={2} placeholder="一句话说明这个项目" />
-          </Form.Item>
-          <Button type="primary" htmlType="submit" block>
-            保存
+      <Modal title="添加项目" open={addOpen} onCancel={() => setAddOpen(false)} footer={null} width={560}>
+        <Space style={{ marginBottom: 16 }}>
+          <Button size="small" type={addMode === 'github' ? 'primary' : 'default'} icon={<GithubOutlined />} onClick={() => { setAddMode('github'); if (ghConfigured) loadGhRepos(); }}>
+            从 GitHub 仓库登记
           </Button>
-        </Form>
+          <Button size="small" type={addMode === 'manual' ? 'primary' : 'default'} onClick={() => setAddMode('manual')}>
+            手动创建
+          </Button>
+        </Space>
+
+        {addMode === 'github' ? (
+          ghConfigured === false ? (
+            <Empty description={
+              <span>
+                尚未配置 GitHub 令牌。<Button type="link" onClick={() => nav('/settings')}>去设置页连接 GitHub</Button>
+              </span>
+            } style={{ padding: 24 }} />
+          ) : (
+            <Form layout="vertical" onFinish={createFromGithub} style={{ marginTop: 8 }}>
+              <Form.Item name="repoFullName" label="GitHub 仓库" rules={[{ required: true, message: '请选择仓库' }]}>
+                <Select
+                  showSearch
+                  placeholder="搜索并选择你的 GitHub 仓库…"
+                  optionFilterProp="label"
+                  loading={ghLoading}
+                  onDropdownVisibleChange={(open) => { if (open && ghRepos.length === 0) loadGhRepos(); }}
+                  options={ghRepos.map((r) => ({
+                    value: r.full_name,
+                    label: `${r.full_name}${r.private ? ' 🔒' : ''}${r.description ? ` · ${r.description}` : ''}`,
+                  }))}
+                  notFoundContent={ghLoading ? '加载中…' : '没有可选的仓库'}
+                />
+              </Form.Item>
+              <Form.Item name="description" label="描述（可选）">
+                <Input placeholder="一句话说明这个项目（默认取 GitHub 仓库描述）" />
+              </Form.Item>
+              <Button type="primary" htmlType="submit" block loading={addingGh} icon={<GithubOutlined />}>
+                登记并拉取提交
+              </Button>
+            </Form>
+          )
+        ) : (
+          <Form layout="vertical" onFinish={createProject} style={{ marginTop: 8 }}>
+            <Form.Item name="name" label="项目名称" rules={[{ required: true, message: '请输入项目名称' }]}>
+              <Input placeholder="例如：project-pulse" />
+            </Form.Item>
+            <Form.Item name="repo_remote" label="git 远程地址（可选）">
+              <Input placeholder="例如：github.com/xx/yy.git" />
+            </Form.Item>
+            <Form.Item name="description" label="描述（可选）">
+              <Input.TextArea rows={2} placeholder="一句话说明这个项目" />
+            </Form.Item>
+            <Button type="primary" htmlType="submit" block>
+              保存
+            </Button>
+          </Form>
+        )}
       </Modal>
     </div>
   );

@@ -62,6 +62,8 @@ export interface Project {
   id: number;
   owner_id: number;
   name: string;
+  source: string;
+  repo_full_name: string | null;
   repo_remote: string | null;
   description: string | null;
   status: ProjectStatus;
@@ -198,4 +200,53 @@ export interface PublicShare {
 
 export const publicApi = {
   get: (shareToken: string) => request<PublicShare>(`/public/projects/${shareToken}`),
+};
+
+// ---------- GitHub 数据源 ----------
+
+export interface GithubRepo {
+  full_name: string;
+  name: string;
+  owner: string;
+  private: boolean;
+  html_url: string;
+  description: string | null;
+  default_branch: string;
+}
+
+export interface GithubSettings {
+  configured: boolean;
+  githubUsername: string | null;
+}
+
+export interface GithubSyncResult {
+  ok: boolean;
+  added: number;
+  total: number;
+  syncedAt: string;
+}
+
+export const settingsApi = {
+  github: () => request<GithubSettings>('/settings/github'),
+  saveGithub: (token: string) =>
+    request<GithubSettings & { ok: boolean }>('/settings/github', {
+      method: 'PUT',
+      body: JSON.stringify({ token }),
+    }),
+  clearGithub: () =>
+    request<{ ok: boolean; configured: boolean }>('/settings/github', {
+      method: 'PUT',
+      body: JSON.stringify({ token: '' }),
+    }),
+};
+
+export const githubApi = {
+  repos: () => request<{ repos: GithubRepo[] }>('/github/repos'),
+  registerProject: (data: { repoFullName: string; description?: string; visibility?: string; note?: string }) =>
+    request<Project & { synced?: number }>('/github/projects', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  syncProject: (projectId: number) =>
+    request<GithubSyncResult>(`/github/projects/${projectId}/sync`, { method: 'POST', body: '{}' }),
 };
