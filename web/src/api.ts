@@ -21,9 +21,14 @@ export class ApiError extends Error {
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
     ...(options.headers as Record<string, string>),
   };
+  // 只有携带 body 时才声明 application/json：
+  // Fastify 5 对「Content-Type: application/json 但 body 为空」的请求返回 400
+  // （DELETE/GET 无 body，不应带该头，否则删除/查询会 Bad Request）
+  if (options.body != null) {
+    headers['Content-Type'] = 'application/json';
+  }
   const token = getToken();
   if (token) headers.Authorization = `Bearer ${token}`;
 
